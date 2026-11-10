@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#24364b"><meta name="description" content="Qur'an Comparative Study Workspace">
+<link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css">
+<title>Qur'an Study & Research</title>
+</head>
+<body>
+<header class="topbar"><div><small>PERSONAL QUR'AN RESEARCH WORKSPACE</small><h1>Qur'an Study & Research</h1></div><span class="status" id="saveStatus">স্থানীয়ভাবে সংরক্ষিত</span></header>
+<main>
+<section class="panel intro"><h2>তুলনামূলক আয়াত অধ্যয়ন</h2><p>সূরা ও আয়াত নির্বাচন করে পাশাপাশি আরবি, বাংলা অনুবাদ এবং গবেষণার নোট সাজান।</p><p class="notice">প্রাথমিক পরীক্ষামূলক সংস্করণ: Greentech-এর যাচাইকৃত কুরআন ডেটা ও তাজবিদ রঙের উৎস সংযুক্ত না হওয়া পর্যন্ত এখানে নমুনা আয়াত দেখানো হচ্ছে।</p></section>
+<section class="panel">
+<h2>১. আয়াত নির্বাচন</h2>
+<div class="selector-grid">
+<label>সূরা<select id="surah"><option value="2">আল-বাকারা (২)</option><option value="55">আর-রহমান (৫৫)</option><option value="112">আল-ইখলাস (১১২)</option></select></label>
+<label>আয়াত নম্বর<input id="ayah" type="number" min="1" value="21"></label>
+<button id="addAyah">তালিকায় যোগ করুন</button>
+</div><p class="hint">পরবর্তী ধাপে সার্চ, একাধিক আয়াত নির্বাচন ও পূর্ণ Greentech ডেটা যুক্ত হবে।</p>
+</section>
+<section class="panel">
+<div class="section-head"><h2>২. তুলনামূলক টেবিল</h2><button class="secondary" id="clearAll">সব মুছুন</button></div>
+<div class="table-wrap"><table id="comparison"><thead><tr><th>রেফারেন্স</th><th>আরবি আয়াত</th><th>বাংলা অর্থ</th><th>কাজ</th></tr></thead><tbody id="ayahRows"><tr class="empty"><td colspan="4">এখনো কোনো আয়াত যোগ করা হয়নি।</td></tr></tbody></table></div>
+</section>
+<section class="panel"><h2>৩. নির্বাচিত আয়াতের ব্যক্তিগত নোট</h2><label>আয়াত নির্বাচন<select id="noteAyah"><option value="">প্রথমে আয়াত যোগ করুন</option></select></label><textarea id="individualNote" rows="4" placeholder="এই নির্দিষ্ট আয়াত সম্পর্কে আপনার ব্যাখ্যা লিখুন..."></textarea></section>
+<section class="panel"><h2>৪. পুরো তুলনার সামগ্রিক ব্যাখ্যা</h2><textarea id="groupNote" rows="7" placeholder="আয়াতগুলোর পারস্পরিক সম্পর্ক, বিষয়ভিত্তিক তুলনা, শিক্ষা ও উপসংহার লিখুন..."></textarea><div class="actions"><button id="saveNotes">নোট সংরক্ষণ</button><button class="secondary" id="exportNotes">নোট Backup (JSON)</button><label class="file-button">Backup Import<input type="file" id="importNotes" accept="application/json"></label></div></section>
+<section class="panel"><h2>৫. A5 প্রিন্ট</h2><p>প্রিন্টের আগে ব্রাউজারের Print থেকে Save as PDF নির্বাচন করুন। পেজ সেটিং A5 Portrait থাকবে।</p><button id="printPage">A5 PDF / Print</button></section>
+</main>
+<footer>কুরআনের আরবি ও তাজবিদের নির্ভুলতা যাচাই ছাড়া কোনো নমুনা টেক্সটকে মূল কুরআন হিসেবে ব্যবহার করবেন না।</footer>
+<script src="app.js"></script>
+</body></html>

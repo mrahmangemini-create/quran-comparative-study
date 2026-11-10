@@ -1,0 +1,10 @@
+{
+  "name": "Qur'an Study & Research",
+  "short_name": "Quran Study",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f1e9",
+  "theme_color": "#24364b",
+  "description": "Comparative Quran study and notes"
+}
