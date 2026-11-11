@@ -1,4 +1,3 @@
-
 const KEY = 'quranStudyWorkspace.v1';
 
 let state = {
@@ -7,126 +6,54 @@ let state = {
   groupNote: ''
 };
 
-let quranDB = null;
+let quranData = null;
+let surahMap = new Map();
 
 const $ = id => document.getElementById(id);
 
-// SQLite লাইব্রেরি লোড
-function loadSQLiteLibrary() {
-  return new Promise((resolve, reject) => {
-    if (window.initSqlJs) {
-      resolve();
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/sql-wasm.js';
-
-    script.onload = resolve;
-    script.onerror = () => reject(
-      new Error('SQLite লাইব্রেরি লোড করা যায়নি।')
-    );
-
-    document.head.appendChild(script);
-  });
+function setStatus(message) {
+  const el = $('saveStatus');
+  if (el) el.textContent = message;
 }
 
-// ডেটাবেস লোড
-async function loadDatabase() {
-  try {
-    await loadSQLiteLibrary();
-
-    const SQL = await window.initSqlJs({
-      locateFile: file =>
-        `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.13.0/${file}`
-    });
-
-    const response = await fetch('./data/bn_mujibur.db');
-
-    if (!response.ok) {
-      throw new Error('ডেটাবেস ফাইল পাওয়া যায়নি।');
-    }
-
-    const buffer = await response.arrayBuffer();
-
-    quranDB = new SQL.Database(new Uint8Array(buffer));
-
-    const result = quranDB.exec(
-      'SELECT COUNT(*) FROM verses_content'
-    );
-
-    const total = result[0].values[0][0];
-
-    $('saveStatus').textContent =
-      `বাংলা অনুবাদ প্রস্তুত: ${total} আয়াত`;
-
-    render();
-
-  } catch (error) {
-    console.error(error);
-
-    $('saveStatus').textContent =
-      'ডেটাবেস লোড হয়নি';
-
-    alert(
-      'বাংলা অনুবাদ লোড করা যায়নি। ইন্টারনেট ও ডেটাবেসের পথ পরীক্ষা করুন।'
-    );
-
-    render();
-  }
-}
-
-// নির্দিষ্ট আয়াতের বাংলা অনুবাদ
-function getBengaliAyah(surah, ayah) {
-  if (!quranDB) return 'ডেটাবেস লোড হওয়ার অপেক্ষায়...';
-
-  const statement = quranDB.prepare(
-    `SELECT c2text
-     FROM verses_content
-     WHERE c0sura = ? AND c1ayah = ?
-     LIMIT 1`
-  );
-
-  try {
-    statement.bind([surah, ayah]);
-
-    if (statement.step()) {
-      return statement.getAsObject().c2text || 'অনুবাদ পাওয়া যায়নি।';
-    }
-
-    return 'এই আয়াতের অনুবাদ পাওয়া যায়নি।';
-
-  } finally {
-    statement.free();
-  }
-}
-
-// স্থানীয়ভাবে সংরক্ষণ
 function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(state));
-    $('saveStatus').textContent = 'নোট সংরক্ষিত';
-  } catch (error) {
-    $('saveStatus').textContent = 'সংরক্ষণে সমস্যা হয়েছে';
-  }
+  localStorage.setItem(KEY, JSON.stringify(state));
+  setStatus('সংরক্ষিত');
 }
 
-// নোট লোড
-function load() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(KEY));
-
-    if (saved) {
-      state = { ...state, ...saved };
-    }
-  } catch (error) {
-    console.warn('পুরোনো নোট লোড করা যায়নি।');
-  }
-
-  render();
+function getAyah(surah, ayah) {
+  const surahData = surahMap.get(Number(surah));
+  if (!surahData) return null;
+  return surahData.ayahs.find(item => item.index === Number(ayah)) || null;
 }
 
-// আয়াতের টেবিল তৈরি
+function populateSurahs() {
+  const select = $('surah');
+  select.innerHTML = '';
+
+  quranData.surahs.forEach(surah => {
+    const option = document.createElement('option');
+    option.value = String(surah.index);
+    option.textContent = `${surah.name} (${surah.index})`;
+    select.appendChild(option);
+  });
+
+  select.value = '1';
+  updateAyahLimit();
+}
+
+function updateAyahLimit() {
+  const surahNumber = Number($('surah').value);
+  const surahData = surahMap.get(surahNumber);
+  const ayahInput = $('ayah');
+
+  if (!surahData) return;
+
+  ayahInput.min = '1';
+  ayahInput.max = String(surahData.ayahs.length);
+  ayahInput.value = '1';
+}
+
 function render() {
   const body = $('ayahRows');
   body.innerHTML = '';
@@ -134,111 +61,134 @@ function render() {
   if (!state.ayahs.length) {
     const tr = document.createElement('tr');
     tr.className = 'empty';
-
     const td = document.createElement('td');
     td.colSpan = 4;
     td.textContent = 'এখনো কোনো আয়াত যোগ করা হয়নি।';
-
     tr.appendChild(td);
     body.appendChild(tr);
   }
 
-  state.ayahs.forEach((a, i) => {
+  state.ayahs.forEach((item, index) => {
     const tr = document.createElement('tr');
-
-    const ref = document.createElement('td');
-    ref.textContent = `${a.surah}:${a.ayah}`;
+    const reference = document.createElement('td');
+    reference.textContent = `${item.surah}:${item.ayah}`;
 
     const arabic = document.createElement('td');
     arabic.className = 'arabic';
     arabic.dir = 'rtl';
-    arabic.textContent =
-      'যাচাইকৃত আরবি ডেটা সংযুক্তির অপেক্ষায়';
+    const ayahData = getAyah(item.surah, item.ayah);
+    arabic.textContent = ayahData
+      ? ayahData.text
+      : 'এই আয়াতের আরবি পাঠ পাওয়া যায়নি।';
 
-    const bengali = document.createElement('td');
-    bengali.textContent = getBengaliAyah(a.surah, a.ayah);
+    const translation = document.createElement('td');
+    translation.textContent = 'বাংলা অনুবাদ পরবর্তী ধাপে যুক্ত করা হবে।';
 
     const action = document.createElement('td');
-    const remove = document.createElement('button');
+    const removeButton = document.createElement('button');
+    removeButton.className = 'secondary';
+    removeButton.type = 'button';
+    removeButton.dataset.remove = String(index);
+    removeButton.textContent = 'বাদ দিন';
+    action.appendChild(removeButton);
 
-    remove.className = 'secondary';
-    remove.textContent = 'বাদ দিন';
-    remove.dataset.remove = i;
-
-    action.appendChild(remove);
-
-    tr.append(ref, arabic, bengali, action);
+    tr.append(reference, arabic, translation, action);
     body.appendChild(tr);
   });
 
-  // ব্যক্তিগত নোটের তালিকা
-  const sel = $('noteAyah');
-  sel.innerHTML = '';
+  const noteSelect = $('noteAyah');
+  const previousValue = noteSelect.value;
+  noteSelect.innerHTML = '';
 
   if (!state.ayahs.length) {
     const option = document.createElement('option');
     option.value = '';
     option.textContent = 'প্রথমে আয়াত যোগ করুন';
-    sel.appendChild(option);
+    noteSelect.appendChild(option);
+  } else {
+    state.ayahs.forEach(item => {
+      const option = document.createElement('option');
+      option.value = `${item.surah}:${item.ayah}`;
+      option.textContent = `সূরা ${item.surah}, আয়াত ${item.ayah}`;
+      noteSelect.appendChild(option);
+    });
+
+    if (state.ayahs.some(item => `${item.surah}:${item.ayah}` === previousValue)) {
+      noteSelect.value = previousValue;
+    }
   }
 
-  state.ayahs.forEach(a => {
-    const option = document.createElement('option');
-
-    option.value = `${a.surah}:${a.ayah}`;
-    option.textContent = `সূরা ${a.surah}, আয়াত ${a.ayah}`;
-
-    sel.appendChild(option);
-  });
-
   $('groupNote').value = state.groupNote || '';
-
   loadIndividual();
 }
 
-// ব্যক্তিগত নোট লোড
 function loadIndividual() {
   const key = $('noteAyah').value;
-  $('individualNote').value =
-    state.individualNotes[key] || '';
+  $('individualNote').value = state.individualNotes[key] || '';
 }
 
-// আয়াত যোগ
+function loadSavedState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    if (saved && typeof saved === 'object') {
+      state = { ...state, ...saved };
+    }
+  } catch (error) {
+    console.warn('Saved workspace could not be read.', error);
+  }
+}
+
+async function initialize() {
+  try {
+    const response = await fetch('./data/quran-uthmani.json');
+    if (!response.ok) {
+      throw new Error(`JSON file load failed: ${response.status}`);
+    }
+
+    quranData = await response.json();
+
+    if (!Array.isArray(quranData.surahs) || quranData.surahs.length !== 114) {
+      throw new Error('Quran JSON structure is not valid.');
+    }
+
+    surahMap = new Map(quranData.surahs.map(surah => [surah.index, surah]));
+
+    loadSavedState();
+    populateSurahs();
+    render();
+    setStatus('কুরআনের আরবি ডেটা লোড হয়েছে');
+  } catch (error) {
+    console.error(error);
+    setStatus('আরবি ডেটা লোড হয়নি');
+    alert('আরবি কুরআন ডেটা লোড করা যায়নি। data/quran-uthmani.json ফাইলের অবস্থান পরীক্ষা করুন।');
+  }
+}
+
+$('surah').addEventListener('change', updateAyahLimit);
+
 $('addAyah').addEventListener('click', () => {
   const surah = Number($('surah').value);
   const ayah = Number($('ayah').value);
+  const surahData = surahMap.get(surah);
 
-  if (!quranDB) {
-    return alert('প্রথমে বাংলা ডেটাবেস লোড হতে দিন।');
-  }
-
-  if (!Number.isInteger(surah) || surah < 1 || surah > 114 ||
-      !Number.isInteger(ayah) || ayah < 1) {
-    return alert('সঠিক সূরা ও আয়াত নম্বর দিন।');
-  }
-
-  const translation = getBengaliAyah(surah, ayah);
-
-  if (translation === 'এই আয়াতের অনুবাদ পাওয়া যায়নি।') {
-    return alert('এই আয়াতের অনুবাদ ডেটাবেসে পাওয়া যায়নি।');
+  if (!surahData || !Number.isInteger(ayah) || ayah < 1 || ayah > surahData.ayahs.length) {
+    alert('এই সূরার জন্য সঠিক আয়াত নম্বর দিন।');
+    return;
   }
 
   const key = `${surah}:${ayah}`;
-
-  if (state.ayahs.some(a => `${a.surah}:${a.ayah}` === key)) {
-    return alert('এই আয়াতটি আগে যোগ করা হয়েছে।');
+  if (state.ayahs.some(item => `${item.surah}:${item.ayah}` === key)) {
+    alert('এই আয়াতটি আগে যোগ করা হয়েছে।');
+    return;
   }
 
   state.ayahs.push({ surah, ayah });
-
   persist();
   render();
 });
 
-// আয়াত বাদ দেওয়া
 $('ayahRows').addEventListener('click', event => {
   const index = event.target.dataset.remove;
-
   if (index !== undefined) {
     state.ayahs.splice(Number(index), 1);
     persist();
@@ -246,44 +196,29 @@ $('ayahRows').addEventListener('click', event => {
   }
 });
 
-// নোট নির্বাচন
 $('noteAyah').addEventListener('change', loadIndividual);
 
-// নোট সংরক্ষণ
 $('saveNotes').addEventListener('click', () => {
   const key = $('noteAyah').value;
-
-  if (key) {
-    state.individualNotes[key] =
-      $('individualNote').value;
-  }
-
+  if (key) state.individualNotes[key] = $('individualNote').value;
   state.groupNote = $('groupNote').value;
-
   persist();
-
-  alert('নোট এই ডিভাইসে সংরক্ষণ করা হয়েছে।');
+  alert('নোট এই ডিভাইসে সংরক্ষণ করা হয়েছে। Backup রাখুন।');
 });
 
-// সামগ্রিক নোট
 $('groupNote').addEventListener('input', () => {
   state.groupNote = $('groupNote').value;
   persist();
 });
 
-// ব্যক্তিগত নোট
 $('individualNote').addEventListener('input', () => {
   const key = $('noteAyah').value;
-
   if (key) {
-    state.individualNotes[key] =
-      $('individualNote').value;
-
+    state.individualNotes[key] = $('individualNote').value;
     persist();
   }
 });
 
-// সব আয়াত মুছে ফেলা
 $('clearAll').addEventListener('click', () => {
   if (confirm('সব নির্বাচিত আয়াত মুছবেন?')) {
     state.ayahs = [];
@@ -292,64 +227,45 @@ $('clearAll').addEventListener('click', () => {
   }
 });
 
-// JSON Backup
 $('exportNotes').addEventListener('click', () => {
   state.groupNote = $('groupNote').value;
-
-  const blob = new Blob(
-    [JSON.stringify(state, null, 2)],
-    { type: 'application/json' }
-  );
-
-  const url = URL.createObjectURL(blob);
+  const blob = new Blob([JSON.stringify(state, null, 2)], {
+    type: 'application/json'
+  });
   const link = document.createElement('a');
-
-  link.href = url;
+  link.href = URL.createObjectURL(blob);
   link.download = 'quran-study-backup.json';
   link.click();
-
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(link.href);
 });
 
-// Backup Import
 $('importNotes').addEventListener('change', async event => {
   try {
     const file = event.target.files[0];
     if (!file) return;
 
-    const data = JSON.parse(await file.text());
+    const imported = JSON.parse(await file.text());
+    if (!Array.isArray(imported.ayahs)) throw new Error('Invalid backup');
 
-    if (!Array.isArray(data.ayahs)) {
-      throw new Error('Invalid backup');
-    }
-
-    state = { ...state, ...data };
-
+    state = { ...state, ...imported };
     persist();
     render();
-
     alert('Backup Import হয়েছে।');
-
   } catch (error) {
     alert('Backup ফাইলটি সঠিক নয়।');
+  } finally {
+    event.target.value = '';
   }
-
-  event.target.value = '';
 });
 
-// A5 Print
-$('printPage').addEventListener('click', () => {
-  window.print();
-});
+$('printPage').addEventListener('click', () => window.print());
 
-// Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .catch(error => console.warn(error));
+    navigator.serviceWorker.register('./sw.js').catch(error => {
+      console.warn('Service worker registration failed:', error);
+    });
   });
 }
 
-// অ্যাপ চালু
-load();
-loadDatabase();
+initialize();
